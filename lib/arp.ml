@@ -6,14 +6,14 @@ type arp_header =
   {htype: uint16_t; ptype: uint16_t; hlen: uint8_t; plen: uint8_t; op: uint16_t}
 [@@big_endian]]
 
-type t = {header: Cstruct.t; data: Cstruct.t}
+type t = {header: Cstruct.t; data: Cstruct.t; dev: Dev.t}
 
-let to_string t = Cstruct.(append t.header t.data |> to_string)
+let to_bytes t = Cstruct.(append t.header t.data |> to_bytes)
 
-let of_ethernet s : t =
+let of_ethernet dev s : t =
   let open Cstruct in
   let header, data = split (of_string s) sizeof_arp_header in
-  {header; data}
+  {header; data; dev}
 
 let get_htype t =
   match get_arp_header_htype t.header with
@@ -73,7 +73,7 @@ let get_reply t tha =
   let _, tpa = Cstruct.split target hlen in
   let tha' = Cstruct.of_string (Macaddr.to_string tha) in
   let data' = Cstruct.concat [tha'; tpa; sender] in
-  {header= t.header; data= data'}
+  {header= t.header; data= data'; dev= t.dev}
 
 (* https://tools.ietf.org/html/rfc826 *)
 let arp_algo t (trans_table : translate_Table) =
@@ -92,7 +92,7 @@ let arp_algo t (trans_table : translate_Table) =
     | None ->
         trans_table
   in
-  let devip = Dev.(get_ip dev) |> Ipaddr.V4.to_string in
+  let devip = Dev.(get_ip t.dev) |> Ipaddr.V4.to_string in
   let am_i_target_proto_addr_and_is_merge =
     Option.is_none merge && devip = Cstruct.to_string (get_tpa t)
   in
@@ -112,7 +112,7 @@ let arp_algo t (trans_table : translate_Table) =
   in
   let () =
     if am_i_target_proto_addr_and_is_merge && is_request then
-      let t' = get_reply t Dev.(get_mac dev) in
-      Dev.send_tap (to_string t')
+      let t' = get_reply t Dev.(get_mac t.dev) in
+      Dev.send t.dev (to_bytes t') |> ignore
   in
   Ok trans_table''

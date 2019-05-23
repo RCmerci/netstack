@@ -1,4 +1,4 @@
 (library
  (name netstack)
- (libraries core tuntap cstruct macaddr ethernet)
+ (libraries core tuntap cstruct macaddr ethernet shexp.process)
  (preprocess (pps ppx_sexp_conv ppx_cstruct ppx_compare)))
